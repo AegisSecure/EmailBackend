@@ -1,0 +1,10 @@
+fastapi
+uvicorn
+uvicorn[standard]
+python-dotenv
+motor
+pydantic
+pyjwt
+httpx
+pymongo
+python-jose
