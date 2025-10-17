@@ -8,3 +8,4 @@ pyjwt
 httpx
 pymongo
 python-jose
+passlib
