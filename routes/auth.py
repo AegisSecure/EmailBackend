@@ -39,8 +39,8 @@ async def register_user(req: RegisterRequest):
     existing = await users_col.find_one({"email": req.email})
     if existing:
         raise HTTPException(status_code=400, detail="Email already registered")
-    print("Raw request body:", body.decode())
-    print("Parsed:", req.dict())
+    # print("Raw request body:", body.decode())
+    # print("Parsed:", req.dict())
     hashed_password = pwd_context.hash(req.password)
     user_doc = {
         "name": req.name,  # Added name field

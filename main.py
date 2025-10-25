@@ -42,7 +42,7 @@ async def websocket_endpoint(websocket: WebSocket):
     except WebSocketDisconnect:
         await disconnect(websocket)
     except Exception as e:
-        print(f"⚠️ WebSocket error: {e}")
+        print(f"WebSocket error: {e}")
         await disconnect(websocket)
 
 # -------------------------------

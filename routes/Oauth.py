@@ -4,6 +4,7 @@ from database import messages_col, accounts_col
 import os
 from jose import jwt
 from dotenv import load_dotenv
+from .notifications import get_spam_prediction
 import base64, json
 
 load_dotenv()
@@ -114,6 +115,17 @@ async def google_callback(code: str, state: str = None):
                 headers={"Authorization": f"Bearer {access_token}"}
             )
             msg_data = msg_resp.json()
+
+            # -------------------------
+            subject = next((h["value"] for h in msg_data["payload"]["headers"] if h["name"] == "Subject"), "")
+            sender = next((h["value"] for h in msg_data["payload"]["headers"] if h["name"] == "From"), "")
+            snippet = msg_data.get("snippet", "")
+            combined_text = f"{subject} {snippet}"
+
+            # 🔹 Get spam prediction
+            spam_prediction = await get_spam_prediction(combined_text)
+            # -------------------------
+
             emails.append({
                 "gmail_id": msg_id,
                 "gmail_email": gmail_email,
@@ -122,6 +134,9 @@ async def google_callback(code: str, state: str = None):
                 "from": next((h["value"] for h in msg_data["payload"]["headers"] if h["name"]=="From"), ""),
                 "snippet": msg_data.get("snippet", ""),
                 "timestamp": int(msg_data["internalDate"]),
+                # -------------------------
+                "spam_prediction": spam_prediction,  # 👈 Store it
+                # -------------------------
             })
 
         # Save messages in DB

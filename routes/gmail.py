@@ -62,4 +62,3 @@ async def get_current_user(user_id: str):
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     return {"name": user.get("name", "User"), "gmail_email": user.get("gmail_email")}
-
