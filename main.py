@@ -3,12 +3,12 @@ from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
 from fastapi import WebSocket
 from websocket_manager import connect, disconnect
-
 load_dotenv()
 
-from routes import auth, gmail, Oauth,notifications
+from routes import auth, gmail, Oauth,notifications,otp
 from websocket_manager import active_connections  # see note below
 from websocket_manager import broadcast_new_email
+import asyncio
 
 # Create FastAPI app
 app = FastAPI(title="Mail Backend")
