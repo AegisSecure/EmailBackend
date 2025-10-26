@@ -30,6 +30,7 @@ class LoginRequest(BaseModel):
 
 class LoginResponse(BaseModel):
     token: str
+    verified: bool
 
 
 class SendOTPRequest(BaseModel):#<--⭐️
@@ -93,7 +94,7 @@ async def login_user(req: LoginRequest):
     }
     
     token = jwt.encode(payload, JWT_SECRET, algorithm="HS256")
-    return {"token": token}
+    return {"token": token,"verified": user.get("verified", False)}
 
 
 
