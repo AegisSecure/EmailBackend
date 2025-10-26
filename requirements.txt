@@ -12,3 +12,10 @@ passlib
 passlib[bcrypt]==1.7.4
 bcrypt==4.0.1
 pydantic[email]
+fastapi==0.112.0
+uvicorn[standard]==0.23.2
+httpx==1.2.4
+pymongo[srv]==5.7.0
+python-dotenv==1.0.1
+python-jose==3.3.0
+email-validator==2.1.1
