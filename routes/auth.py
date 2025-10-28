@@ -4,10 +4,12 @@ from pydantic import BaseModel
 from passlib.context import CryptContext
 import jwt
 import os
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials 
 from pydantic import BaseModel, EmailStr
 from dotenv import load_dotenv
 import datetime
 
+security = HTTPBearer()
 load_dotenv()
 from database import users_col ,auth_db 
 from routes import otp#<--⭐️
@@ -142,6 +144,15 @@ async def verify_otp(req: VerifyOTPRequest):
         print(f"❌ Exception during OTP verify: {e}")
         raise
 
+
+def decode_jwt(token: str):
+    try:
+        decoded = jwt.decode(token, JWT_SECRET, algorithms=["HS256"])
+        return decoded
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(status_code=401, detail="Token expired")
+    except jwt.InvalidTokenError:
+        raise HTTPException(status_code=401, detail="Invalid token")
 
 
 @router.get("/me")
