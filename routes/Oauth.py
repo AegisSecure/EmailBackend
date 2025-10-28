@@ -5,6 +5,7 @@ import os
 from jose import jwt
 from dotenv import load_dotenv
 from .notifications import get_spam_prediction
+from datetime import datetime
 import base64, json
 
 load_dotenv()
@@ -93,11 +94,29 @@ async def google_callback(code: str, state: str = None):
         gmail_email = profile_resp.json().get("emailAddress")
 
         # Save refresh token
+        # if refresh_token:
+        #     await accounts_col.update_one(
+        #         {"user_id": user_id, "gmail_email": gmail_email},
+        #         {"$set": {"refresh_token": refresh_token}},
+        #         upsert=True
+        #     )
         if refresh_token:
             await accounts_col.update_one(
                 {"user_id": user_id, "gmail_email": gmail_email},
-                {"$set": {"refresh_token": refresh_token}},
-                upsert=True
+                {
+                    "$set": {
+                        "refresh_token": refresh_token,
+                        "connected_at": datetime.utcnow(),
+                    }
+                },
+                upsert=True,
+            )
+        else:
+            # even if refresh_token missing (like re-login)
+            await accounts_col.update_one(
+                {"user_id": user_id, "gmail_email": gmail_email},
+                {"$setOnInsert": {"connected_at": datetime.utcnow()}},
+                upsert=True,
             )
 
         # Fetch last 10 messages
