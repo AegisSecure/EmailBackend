@@ -1,5 +1,5 @@
 # routes/auth.py
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException,Depends
 from pydantic import BaseModel
 from passlib.context import CryptContext
 import jwt
