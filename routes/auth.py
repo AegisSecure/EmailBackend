@@ -141,3 +141,20 @@ async def verify_otp(req: VerifyOTPRequest):
     except Exception as e:
         print(f"❌ Exception during OTP verify: {e}")
         raise
+
+
+
+@router.get("/me")
+async def get_user_info(credentials: HTTPAuthorizationCredentials = Depends(security)):
+    """Returns the name and email of the logged-in user."""
+    token = credentials.credentials
+    decoded = decode_jwt(token)
+    user = await users_col.find_one({"email": decoded["email"]})
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    return {
+        "name": user["name"],
+        "email": user["email"],
+        "verified": user.get("verified", False),
+    }
