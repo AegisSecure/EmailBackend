@@ -34,26 +34,61 @@ async def get_current_user_id(token: str = Depends(oauth2_scheme)):
 # -----------------------
 # Fetch emails for current user
 # -----------------------
-@router.get("/emails")
-async def get_emails(user_id: str = Depends(get_current_user_id)):
-    try:
-        emails_cursor = messages_col.find({"user_id": user_id}, {"_id": 0})
-        emails = await emails_cursor.to_list(length=None)
-        for e in emails:
-            e["timestamp"] = e.pop("date", None)  # keep ms since epoch
+# @router.get("/emails")
+# async def get_emails(user_id: str = Depends(get_current_user_id)):
+#     try:
+#         emails_cursor = messages_col.find({"user_id": user_id}, {"_id": 0})
+#         emails = await emails_cursor.to_list(length=None)
+#         for e in emails:
+#             e["timestamp"] = e.pop("date", None)  # keep ms since epoch
 
+#         for e in emails:
+#             if "timestamp" not in e:
+#                 e["timestamp"] = 0
+
+#         for e in emails:
+#             e["timestamp"] = int(e.pop("date", 0)) 
+
+#         emails_sorted = sorted(emails, key=lambda e: e.get("timestamp", 0), reverse=True)
+#         return emails_sorted
+    
+#     except Exception as e:
+#         raise HTTPException(status_code=500, detail=str(e))
+    
+@router.get("/emails")
+async def get_emails(
+    user_id: str = Depends(get_current_user_id),
+    account: str | None = None,
+):
+    """
+    Fetch emails for the authenticated user.
+    If `account` query param is provided, only return emails for that Gmail account.
+    """
+    try:
+        query = {"user_id": user_id}
+        if account:
+            query["gmail_email"] = account  # filter by selected Gmail account
+
+        emails_cursor = messages_col.find(query, {"_id": 0})
+        emails = await emails_cursor.to_list(length=None)
+
+        # Normalize timestamps
         for e in emails:
-            if "timestamp" not in e:
+            if "timestamp" in e:
+                e["timestamp"] = int(e["timestamp"])
+            elif "date" in e:
+                e["timestamp"] = int(e.pop("date", 0))
+            else:
                 e["timestamp"] = 0
 
-        for e in emails:
-            e["timestamp"] = int(e.pop("date", 0)) 
-
+        # Sort newest first
         emails_sorted = sorted(emails, key=lambda e: e.get("timestamp", 0), reverse=True)
         return emails_sorted
-    
+
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
 
 
 @router.get("/user/me")
@@ -62,3 +97,22 @@ async def get_current_user(user_id: str):
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     return {"name": user.get("name", "User"), "gmail_email": user.get("gmail_email")}
+
+
+
+# --------------⭐️
+@router.get("/gmail/accounts")
+async def get_connected_accounts(user_id: str = Depends(get_current_user_id)):
+    """
+    Return all Gmail accounts connected by this user.
+    """
+    try:
+        accounts_cursor = accounts_col.find(
+            {"user_id": user_id},
+            {"_id": 0, "gmail_email": 1, "connected_at": 1}
+        )
+        accounts = await accounts_cursor.to_list(length=None)
+        return {"accounts": accounts}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
