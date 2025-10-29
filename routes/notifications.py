@@ -57,12 +57,12 @@ async def get_access_token_from_refresh(refresh_token: str):
 async def analyze_text_endpoint(data: dict):
     text = data.get("text", "")
     if not text:
-        return {"prediction": "UNKNOWN"}  # empty input
+        return {"prediction": "UNKNOWN"} 
 
     try:
-        # get_spam_prediction should return "SPAM" or "HAM" as a string
+        
         prediction = await get_spam_prediction(text)
-        prediction_str = str(prediction).strip().upper()  # ensure consistency
+        prediction_str = str(prediction).strip().upper() 
         if prediction_str not in ["SPAM", "HAM"]:
             prediction_str = "UNKNOWN"
         return {"prediction": prediction_str}
@@ -70,41 +70,36 @@ async def analyze_text_endpoint(data: dict):
         print("Error in analyze_text_endpoint:", e)
         return {"prediction": "UNKNOWN"}
 
-#-----------------------
 
 @router.post("/gmail/notifications")
 async def gmail_notifications(request: Request):
     try:
         raw_data = await request.json()
-        # 🔹 Ignore Pub/Sub verification messages
         if "message" not in raw_data:
             return {"status": "ignored"}
 
-        # Decode Pub/Sub base64 message
+        
         msg_str = base64.b64decode(raw_data["message"]["data"]).decode("utf-8")
         msg = json.loads(msg_str)
 
         email_address = msg.get("emailAddress")
         history_id = msg.get("historyId")
-        print(f"📩 Gmail Push Notification for {email_address} | historyId={history_id}")
+        print(f"Gmail Push Notification for {email_address} | historyId={history_id}")
 
         if not email_address:
             return {"status": "error", "message": "Missing emailAddress in notification"}
 
-        # Fetch account from DB
+        
         user = await accounts_col.find_one({"gmail_email": email_address})
         if not user or "refresh_token" not in user:
             print(f"⚠️ Missing refresh_token for {email_address}")
             return {"status": "ignored"}
-
-        # Get new access token
         access_token = await get_access_token_from_refresh(user["refresh_token"])
         if not access_token:
             print(f"⚠️ Failed to get access_token for {email_address}")
             return {"status": "error"}
 
         async with httpx.AsyncClient() as client:
-            # Fetch new messages from Gmail using incremental historyId
             start_history_id = user.get("last_history_id", history_id)
             history_resp = await client.get(
                 f"https://gmail.googleapis.com/gmail/v1/users/me/history",
@@ -116,8 +111,6 @@ async def gmail_notifications(request: Request):
             for record in history_data.get("history", []):
                 for msg_event in record.get("messages", []):
                     msg_id = msg_event["id"]
-
-                    # Fetch full message
                     msg_resp = await client.get(
                         f"https://gmail.googleapis.com/gmail/v1/users/me/messages/{msg_id}?format=full",
                         headers={"Authorization": f"Bearer {access_token}"}
@@ -127,14 +120,8 @@ async def gmail_notifications(request: Request):
                     subject = next((h["value"] for h in headers if h["name"] == "Subject"), "")
                     sender = next((h["value"] for h in headers if h["name"] == "From"), "")
                     snippet = msg_data.get("snippet", "")
-
-                    #---------
                     combined_text = f"{subject} {snippet}"
                     spam_prediction = await get_spam_prediction(combined_text)
-                    #---------
-
-
-                    # Insert/update message in DB
                     await messages_col.update_one(
                         {"user_id": user["user_id"], "gmail_email": email_address, "gmail_id": msg_id},
                         {"$set": {
@@ -146,14 +133,10 @@ async def gmail_notifications(request: Request):
                         }},
                         upsert=True
                     )
-
-        # Update last_history_id
         await accounts_col.update_one(
             {"gmail_email": email_address},
             {"$set": {"last_history_id": history_id}}
         )
-
-        # Broadcast new email event to frontend
         await broadcast_new_email(email_address)
 
         return {"status": "processed"}
