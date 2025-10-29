@@ -89,35 +89,48 @@ async def google_callback(code: str, state: str = None):
         # Get Gmail email
         profile_resp = await client.get(
             "https://www.googleapis.com/gmail/v1/users/me/profile",
-            headers={"Authorization": f"Bearer {access_token}"}
-        )
+            headers={"Authorization": f"Bearer {access_token}"})
         gmail_email = profile_resp.json().get("emailAddress")
 
+        #-------⭐️
+        # userinfo_resp = await client.get("https://www.googleapis.com/oauth2/v3/userinfo",headers={"Authorization": f"Bearer {access_token}"})
+        # userinfo_data = userinfo_resp.json()
+        # photo_url = userinfo_data.get("picture")
+        # full_name = userinfo_data.get("name")
+
         # Save refresh token
-        # if refresh_token:
-        #     await accounts_col.update_one(
-        #         {"user_id": user_id, "gmail_email": gmail_email},
-        #         {"$set": {"refresh_token": refresh_token}},
-        #         upsert=True
-        #     )
         if refresh_token:
             await accounts_col.update_one(
                 {"user_id": user_id, "gmail_email": gmail_email},
+                {"$set": {"refresh_token": refresh_token}},
+                upsert=True
+            )
+        # if refresh_token:
+        #     await accounts_col.update_one(
+        #         {"user_id": user_id, "gmail_email": gmail_email},
+        #         {
+        #             "$set": {
+        #                 "refresh_token": refresh_token,
+        #                 "connected_at": datetime.utcnow(),
+        #                 # "photo_url": photo_url,#⭐️
+        #                 # "full_name": full_name,#⭐️
+        #             }
+        #         },
+        #         upsert=True,
+        #     )
+        else:
+            await accounts_col.update_one(
+                {"user_id": user_id, "gmail_email": gmail_email},
                 {
-                    "$set": {
-                        "refresh_token": refresh_token,
-                        "connected_at": datetime.utcnow(),
-                    }
+                    "$setOnInsert": {"connected_at": datetime.utcnow()},
+                    # "$set": {
+                    #     "photo_url": photo_url,
+                    #     "full_name": full_name,
+                    # },
                 },
                 upsert=True,
             )
-        else:
-            # even if refresh_token missing (like re-login)
-            await accounts_col.update_one(
-                {"user_id": user_id, "gmail_email": gmail_email},
-                {"$setOnInsert": {"connected_at": datetime.utcnow()}},
-                upsert=True,
-            )
+
 
         # Fetch last 10 messages
         messages_resp = await client.get(
