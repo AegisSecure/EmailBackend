@@ -8,9 +8,6 @@ JWT_SECRET = os.getenv("JWT_SECRET", "your_secret_key")
 ALGORITHM = "HS256"
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
 
-# -----------------------
-# Get current user ID from JWT
-# -----------------------
 @router.get("/gmail/state-token")
 def get_state_token(user_id: str):
     payload = {
@@ -30,30 +27,6 @@ async def get_current_user_id(token: str = Depends(oauth2_scheme)):
         return user_id
     except JWTError as e:
         raise HTTPException(status_code=401, detail="Invalid or expired token")
-
-# -----------------------
-# Fetch emails for current user
-# -----------------------
-# @router.get("/emails")
-# async def get_emails(user_id: str = Depends(get_current_user_id)):
-#     try:
-#         emails_cursor = messages_col.find({"user_id": user_id}, {"_id": 0})
-#         emails = await emails_cursor.to_list(length=None)
-#         for e in emails:
-#             e["timestamp"] = e.pop("date", None)  # keep ms since epoch
-
-#         for e in emails:
-#             if "timestamp" not in e:
-#                 e["timestamp"] = 0
-
-#         for e in emails:
-#             e["timestamp"] = int(e.pop("date", 0)) 
-
-#         emails_sorted = sorted(emails, key=lambda e: e.get("timestamp", 0), reverse=True)
-#         return emails_sorted
-    
-#     except Exception as e:
-#         raise HTTPException(status_code=500, detail=str(e))
     
 @router.get("/emails")
 async def get_emails(
@@ -115,4 +88,22 @@ async def get_connected_accounts(user_id: str = Depends(get_current_user_id)):
         return {"accounts": accounts}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+    
+    
+@router.post("/accounts/delete")
+async def delete_connected_account(
+    payload: dict,
+    user_id: str = Depends(get_current_user_id)
+):
+    gmail_email = payload.get("gmail_email")
+    if not gmail_email:
+        raise HTTPException(status_code=400, detail="Missing gmail_email")
 
+    result = await accounts_col.delete_one(
+        {"user_id": user_id, "gmail_email": gmail_email}
+    )
+
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Account not found")
+
+    return {"message": "Account deleted successfully"}
