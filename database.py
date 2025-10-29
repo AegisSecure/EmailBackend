@@ -15,3 +15,4 @@ mail_db = client.Mails_db
 users_col = auth_db.users
 accounts_col = mail_db.accounts
 messages_col = mail_db.messages
+otps_col=auth_db.otps
