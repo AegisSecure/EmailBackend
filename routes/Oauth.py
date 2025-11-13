@@ -56,8 +56,6 @@ def extract_body(payload):
 
     mime_type = payload.get("mimeType", "")
     body_data = payload.get("body", {}).get("data")
-
-    # Directly decode text/plain or text/html
     if body_data and ("text/plain" in mime_type or "text/html" in mime_type):
         try:
             text = base64.urlsafe_b64decode(body_data).decode("utf-8", errors="ignore")
@@ -65,8 +63,6 @@ def extract_body(payload):
         except Exception as e:
             # print("Decode error:", e)
             return ""
-
-    # Recursively search all nested parts
     for part in payload.get("parts", []):
         text = extract_body(part)
         if text:
