@@ -12,3 +12,5 @@ bcrypt==3.2.2
 pydantic[email]
 email-validator
 python-multipart
+groq
+motor
