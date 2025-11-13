@@ -10,13 +10,13 @@ import hashlib
 import httpx
 import os
 from fastapi.encoders import jsonable_encoder
-from bson import ObjectId
+from notifications import get_spam_prediction
 
 
 router = APIRouter()
 load_dotenv()
 
-CYBER_MODEL_URL = "https://cybersecure-backend-api.onrender.com/predict"
+CYBER_MODEL_URL = os.getenv("CYBER_SECURE_API_URI")
 class SmsMessage(BaseModel):
     address: str
     body: str
@@ -37,32 +37,6 @@ def serialize_doc(doc):
         doc["created_at"] = doc["created_at"].isoformat()
     return doc
 
-async def analyze_sms_text(text: str) -> dict:
-    try:
-        async with httpx.AsyncClient(timeout=15) as client:
-            res = await client.post(
-                CYBER_MODEL_URL,
-                json={"text": text},
-                headers={"Content-Type": "application/json"},
-            )
-
-        if res.status_code == 200:
-            data = res.json()
-            return {
-                "confidence": data.get("confidence", 0.0),
-                "reasoning": data.get("reasoning", ""),
-                "highlighted_text": data.get("highlighted_text", ""),
-                "suggestion": data.get("suggestion", ""),
-                "final_decision": data.get("final_decision", "UNKNOWN"),
-            }
-
-        print(f"Model API error: {res.status_code} {res.text}")
-        return {"confidence": 0.0, "reasoning": "", "suggestion": "", "final_decision": "UNKNOWN"}
-
-    except Exception as e:
-        print(f"Error calling model: {e}")
-        return {"confidence": 0.0, "reasoning": "", "suggestion": "", "final_decision": "UNKNOWN"}
-
 @router.post("/sync")
 async def sync_sms(request: SmsSyncRequest, current_user: dict = Depends(get_current_user)):
     user_id = current_user.get("user_id")
@@ -76,7 +50,8 @@ async def sync_sms(request: SmsSyncRequest, current_user: dict = Depends(get_cur
         existing = await sms_messages_col.find_one({"hash": msg_hash, "user_id": user_id})
         if existing:
             continue
-        spam_analysis = await analyze_sms_text(msg.body)
+        combined_text=f"{""}{""}{msg.body}"
+        spam_analysis = await get_spam_prediction(combined_text)
 
         message_doc = {
             "user_id": user_id,
