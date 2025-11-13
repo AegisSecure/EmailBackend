@@ -148,7 +148,7 @@ async def google_callback(code: str, state: str = None):
             sender_email = match.group(1) if match else from_header
             snippet = msg_data.get("snippet", "")
             body = extract_body(msg_data.get("payload", {}))
-            combined_text = f"{subject} {snippet}"
+            combined_text = f"{subject} {body}"
 
             # print("This is new Email"+body);
             spam_result = await get_spam_prediction(combined_text)
