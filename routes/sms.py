@@ -1,60 +1,115 @@
-# routes/sms.py
-
 from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
 from typing import List
-import jwt
-import os
+from datetime import datetime
 from dotenv import load_dotenv
-
-# Import the necessary dependency from auth.py (assuming it's available)
-# Since you have not provided main.py, we assume auth.py exposes get_current_user
 from .auth import get_current_user
+from database import sms_messages_col
+from websocket_manager import broadcast_new_email
+import hashlib
+import httpx
+import os
+from fastapi.encoders import jsonable_encoder
+from bson import ObjectId
+
 
 router = APIRouter()
+load_dotenv()
 
-# --- Pydantic Models for incoming SMS data ---
-
+CYBER_MODEL_URL = "https://cybersecure-backend-api.onrender.com/predict"
 class SmsMessage(BaseModel):
-    """Model for a single SMS message coming from the Flutter app."""
     address: str
     body: str
-    date_ms: int # Date in milliseconds
-    type: str # 'inbox' or 'sent'
+    date_ms: int
+    type: str
 
 class SmsSyncRequest(BaseModel):
-    """Model for the list of SMS messages sent in the request body."""
     messages: List[SmsMessage]
 
-# --- Endpoint to receive and process SMS data ---
+def generate_message_hash(address: str, body: str, date_ms: int):
+    text = f"{address}-{body}-{date_ms}"
+    return hashlib.sha256(text.encode()).hexdigest()
+
+
+def serialize_doc(doc):
+    doc["_id"] = str(doc["_id"])
+    if isinstance(doc.get("created_at"), datetime):
+        doc["created_at"] = doc["created_at"].isoformat()
+    return doc
+
+async def analyze_sms_text(text: str) -> dict:
+    try:
+        async with httpx.AsyncClient(timeout=15) as client:
+            res = await client.post(
+                CYBER_MODEL_URL,
+                json={"text": text},
+                headers={"Content-Type": "application/json"},
+            )
+
+        if res.status_code == 200:
+            data = res.json()
+            return {
+                "confidence": data.get("confidence", 0.0),
+                "reasoning": data.get("reasoning", ""),
+                "highlighted_text": data.get("highlighted_text", ""),
+                "suggestion": data.get("suggestion", ""),
+                "final_decision": data.get("final_decision", "UNKNOWN"),
+            }
+
+        print(f"Model API error: {res.status_code} {res.text}")
+        return {"confidence": 0.0, "reasoning": "", "suggestion": "", "final_decision": "UNKNOWN"}
+
+    except Exception as e:
+        print(f"Error calling model: {e}")
+        return {"confidence": 0.0, "reasoning": "", "suggestion": "", "final_decision": "UNKNOWN"}
 
 @router.post("/sync")
-async def sync_sms(
-    request: SmsSyncRequest,
-    # Use the dependency to ensure the user is logged in
-    current_user: dict = Depends(get_current_user)
-):
-    """
-    Receives a batch of SMS messages from the client, validates them,
-    and returns a success message. Placeholder for actual processing (e.g., saving to DB, analysis).
-    """
+async def sync_sms(request: SmsSyncRequest, current_user: dict = Depends(get_current_user)):
     user_id = current_user.get("user_id")
-    message_count = len(request.messages)
+    if not user_id:
+        raise HTTPException(status_code=401, detail="User not authenticated")
 
-    # --- PLACEHOLDER FOR BUSINESS LOGIC ---
-    # In a real app, you would:
-    # 1. Save these messages to a dedicated 'sms_collection' in MongoDB.
-    # 2. Check for duplicates (messages already synced).
-    # 3. Queue them for analysis (e.g., check for phishing/spam).
-    # -------------------------------------
+    inserted_count = 0
+    for msg in request.messages:
+        msg_hash = generate_message_hash(msg.address, msg.body, msg.date_ms)
 
-    print(f"SMS SYNC SUCCESS: Received {message_count} messages for user {user_id}")
+        existing = await sms_messages_col.find_one({"hash": msg_hash, "user_id": user_id})
+        if existing:
+            continue
+        spam_analysis = await analyze_sms_text(msg.body)
+
+        message_doc = {
+            "user_id": user_id,
+            "address": msg.address,
+            "body": msg.body,
+            "timestamp": msg.date_ms,
+            "type": msg.type,
+            "hash": msg_hash,
+            "spam_score": spam_analysis.get("confidence"),
+            "created_at": datetime.utcnow(),
+            "spam_reasoning": spam_analysis.get("reasoning"),
+            "spam_highlighted_text": spam_analysis.get("highlighted_text"),
+            "spam_suggestion": spam_analysis.get("suggestion"),
+            "spam_verdict": spam_analysis.get("final_decision"),
+        }
+
+        await sms_messages_col.insert_one(message_doc)
+        inserted_count += 1
+        await broadcast_new_email(message_doc)
 
     return {
         "status": "success",
-        "message": f"Successfully processed {message_count} messages.",
-        "user_id": user_id
+        "inserted": inserted_count,
+        "user_id": user_id,
     }
 
-# NOTE: The full path this route creates is: (prefix) + /sync
-# You must make sure your main.py file includes the prefix '/sms'
+@router.get("/all")
+async def get_all_sms(current_user: dict = Depends(get_current_user)):
+    user_id = current_user.get("user_id")
+    if not user_id:
+        raise HTTPException(status_code=401, detail="User not authenticated")
+
+    messages = await sms_messages_col.find({"user_id": user_id}).sort("timestamp", -1).to_list(100)
+    serialized_messages = [serialize_doc(m) for m in messages]
+
+    return {"sms_messages": jsonable_encoder(serialized_messages)}
