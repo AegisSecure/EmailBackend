@@ -16,23 +16,20 @@ if not GOOGLE_CLIENT_ID or not GOOGLE_CLIENT_SECRET:
     raise Exception("Google OAuth credentials are missing in .env")
 
 class Spam_request(BaseModel):
-    senderName: str
-    senderEmail: str
+    sender: str
     subject: str
     body: str
     
 async def get_spam_prediction(req:Spam_request):
     try:
         async with httpx.AsyncClient() as client:
-            sName=req.senderName
-            sEmail=req.senderEmail
+            sender=req.sender
             subject=req.subject
             body=req.body
             resp = await client.post(
                 CYBER_SECURE_URI,
                 json={
-                    "senderName": sName,
-                    "senderEmail": sEmail,
+                    "sender": sender,
                     "subject": subject,
                     "body": body
                 },
@@ -161,7 +158,7 @@ async def gmail_notifications(request: Request):
                     sender = next((h["value"] for h in headers if h["name"] == "From"), "")
                     snippet = msg_data.get("snippet", "")
                     body = extract_body(msg_data.get("payload", {})) or snippet
-                    combined_text = f"{subject} {body}"
+                    combined_text = f"{sender}{subject} {body}"
                     spam_prediction = await get_spam_prediction(combined_text)
                     await messages_col.update_one(
                         {"user_id": user["user_id"], "gmail_email": email_address, "gmail_id": msg_id},
