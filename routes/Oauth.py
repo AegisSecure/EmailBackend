@@ -144,7 +144,7 @@ async def google_callback(code: str, state: str = None):
             sender_email = match.group(1) if match else from_header
             snippet = msg_data.get("snippet", "")
             body = extract_body(msg_data.get("payload", {}))
-            combined_text = f"{subject} {body}"
+            combined_text = f"{sender_email}{subject} {body}"
 
             # print("This is new Email"+body);
             spam_result = await get_spam_prediction(combined_text)
@@ -316,7 +316,7 @@ async def google_callback(code: str, state: str = None):
         Return to AegisSecure App
       </a>
 
-      <div class="note">If your app doesn’t open automatically, tap the button above.</div>
+      <div class="note">If your app doesn't open automatically, tap the button above.</div>
     </div>
     <footer>© 2025 AegisSecure — Protecting You from Online Mishaps</footer>
   </body>
