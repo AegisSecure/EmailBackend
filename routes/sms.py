@@ -10,7 +10,7 @@ import hashlib
 import httpx
 import os
 from fastapi.encoders import jsonable_encoder
-from notifications import get_spam_prediction
+from routes.notifications import get_spam_prediction
 
 
 router = APIRouter()
