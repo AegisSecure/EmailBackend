@@ -156,7 +156,11 @@ async def gmail_notifications(request: Request):
                             "snippet": snippet,
                             "body": body,
                             "timestamp": int(msg_data.get("internalDate", datetime.now(timezone.utc).timestamp() * 1000)),
-                            "spam_prediction": spam_prediction,
+                            "spam_prediction": spam_prediction.get("confidence"),
+                            "spam_reasoning": spam_prediction.get("reasoning"),
+                            "spam_highlighted_text": spam_prediction.get("highlighted_text"),
+                            "spam_suggestion": spam_prediction.get("suggestion"),
+                            "spam_verdict": spam_prediction.get("final_decision"),
                         }},
                         upsert=True
                     )
