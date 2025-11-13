@@ -5,6 +5,7 @@ import os, json, base64
 from dotenv import load_dotenv
 from websocket_manager import broadcast_new_email
 from datetime import datetime, timezone
+from pydantic import BaseModel
 load_dotenv()
 router = APIRouter()
 GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID")
@@ -14,14 +15,28 @@ CYBER_SECURE_URI=os.getenv("CYBER_SECURE_API_URI")
 if not GOOGLE_CLIENT_ID or not GOOGLE_CLIENT_SECRET:
     raise Exception("Google OAuth credentials are missing in .env")
 
-
-async def get_spam_prediction(text: str):
+class Spam_request(BaseModel):
+    senderName: str
+    senderEmail: str
+    subject: str
+    body: str
+    
+async def get_spam_prediction(req:Spam_request):
     try:
         async with httpx.AsyncClient() as client:
+            sName=req.senderName
+            sEmail=req.senderEmail
+            subject=req.subject
+            body=req.body
             resp = await client.post(
                 CYBER_SECURE_URI,
-                json={"text": text},
-                timeout=60.0
+                json={
+                    "senderName": sName,
+                    "senderEmail": sEmail,
+                    "subject": subject,
+                    "body": body
+                },
+                timeout=30.0
             )
             resp.raise_for_status()
             data = resp.json()
